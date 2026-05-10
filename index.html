@@ -9,11 +9,10 @@
   body {
     font-family: 'Microsoft JhengHei', Arial, sans-serif;
     background: #111; min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; padding: 16px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 16px;
   }
 
-  /* ── 設定畫面 ── */
   .setup { width: 100%; max-width: 440px; }
   .setup h1 { color: white; text-align: center; font-size: 1.15em; letter-spacing: 2px; margin-bottom: 20px; }
 
@@ -25,23 +24,16 @@
   }
   .upload-box:hover { border-color: #888; }
   .upload-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-  .upload-box .tag {
-    font-size: 0.72em; font-weight: bold; padding: 3px 12px;
-    border-radius: 20px; margin-bottom: 8px; z-index: 1;
-  }
+  .upload-box .tag { font-size: 0.72em; font-weight: bold; padding: 3px 12px; border-radius: 20px; margin-bottom: 8px; z-index: 1; }
   .tag-b { background: #fff3e0; color: #e65100; }
   .tag-a { background: #e8f5e9; color: #2e7d32; }
   .upload-box .icon { font-size: 1.8em; color: #555; z-index: 1; }
   .upload-box .hint { font-size: 0.7em; color: #666; margin-top: 4px; z-index: 1; }
-  .thumb {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; border-radius: 8px;
-  }
+  .thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
 
   .field {
     width: 100%; padding: 10px 14px; background: #222; border: 1px solid #444;
-    border-radius: 8px; color: white; font-size: 0.9em; margin-bottom: 12px;
-    outline: none;
+    border-radius: 8px; color: white; font-size: 0.9em; margin-bottom: 12px; outline: none;
   }
   .field::placeholder { color: #555; }
 
@@ -50,9 +42,8 @@
     font-size: 1em; font-weight: bold; cursor: pointer; letter-spacing: 1px;
     background: linear-gradient(135deg, #f97316, #ea580c); color: white;
   }
-  .btn-start:active { opacity: 0.85; }
 
-  /* ── 播放畫面 ── */
+  /* Player */
   .player { display: none; width: 100%; max-width: 440px; }
   .proj-title { color: white; font-size: 1em; font-weight: bold; text-align: center; margin-bottom: 8px; letter-spacing: 1px; }
 
@@ -60,22 +51,29 @@
     position: relative; width: 100%; border-radius: 12px;
     overflow: hidden; background: #000;
   }
-  /* 用 before 圖決定高度，after 疊在上面 */
-  #imgB { display: block; width: 100%; height: auto; object-fit: contain; }
-  #imgA {
+  /* 用隱藏 img 撐高度，兩張圖各自 contain */
+  .sizer { display: block; width: 100%; visibility: hidden; }
+  .layer {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; object-fit: contain;
-    opacity: 0;
   }
+  #imgB { opacity: 1; }
+  #imgA { opacity: 0; }
 
   .badge {
     position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
     padding: 5px 18px; border-radius: 20px; font-size: 0.82em;
     font-weight: bold; color: white; letter-spacing: 1px; pointer-events: none;
-    transition: opacity 0.4s;
+    transition: opacity 0.4s; white-space: nowrap;
   }
   .badge-b { background: rgba(230,81,0,0.88); }
   .badge-a { background: rgba(46,125,50,0.88); opacity: 0; }
+  .watermark {
+    position: absolute; top: 10px; right: 12px;
+    font-size: 0.75em; color: rgba(255,255,255,0.55);
+    font-weight: bold; letter-spacing: 1px; pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  }
 
   .comp-name { color: #666; font-size: 0.72em; text-align: center; margin-top: 8px; letter-spacing: 1px; }
 
@@ -86,12 +84,10 @@
   }
   .btn-play { background: #f97316; color: white; }
   .btn-back { background: #2a2a2a; color: #aaa; }
-  .btn-ctrl:active { opacity: 0.8; }
 </style>
 </head>
 <body>
 
-<!-- 設定畫面 -->
 <div class="setup" id="setup">
   <h1>🧹 清潔前後展示</h1>
   <input class="field" type="text" id="projName" placeholder="工程名稱（例：廚房深度清潔）">
@@ -113,14 +109,16 @@
   <button class="btn-start" onclick="startPlayer()">▶ 開始播放</button>
 </div>
 
-<!-- 播放畫面 -->
 <div class="player" id="player">
   <div class="proj-title" id="rTitle"></div>
   <div class="stage" id="stage">
-    <img id="imgB" src="">
-    <img id="imgA" src="">
+    <!-- sizer 撐高度用，src 會設成較高的那張 -->
+    <img class="sizer" id="sizer" src="">
+    <img class="layer" id="imgB" src="">
+    <img class="layer" id="imgA" src="">
     <div class="badge badge-b" id="bdgB">清潔前</div>
     <div class="badge badge-a" id="bdgA">清潔後</div>
+    <div class="watermark" id="watermark"></div>
   </div>
   <div class="comp-name" id="rComp"></div>
   <div class="controls">
@@ -140,16 +138,13 @@
     var reader = new FileReader();
     reader.onload = function(e) {
       srcs[side] = e.target.result;
-      // 顯示縮圖
       var box = document.getElementById('box' + side);
-      // 移除舊縮圖
       var old = box.querySelector('.thumb');
       if (old) old.remove();
       document.getElementById('icon' + side).style.display = 'none';
       document.getElementById('hint' + side).style.display = 'none';
       var img = document.createElement('img');
-      img.className = 'thumb';
-      img.src = e.target.result;
+      img.className = 'thumb'; img.src = e.target.result;
       box.appendChild(img);
     };
     reader.readAsDataURL(file);
@@ -157,43 +152,62 @@
 
   function startPlayer() {
     if (!srcs.B || !srcs.A) { alert('請先上傳清潔前和清潔後的圖片'); return; }
-    document.getElementById('imgB').src = srcs.B;
-    document.getElementById('imgA').src = srcs.A;
-    document.getElementById('rTitle').textContent = document.getElementById('projName').value || '清潔紀錄';
-    document.getElementById('rComp').textContent = document.getElementById('compName').value || '';
-    document.getElementById('setup').style.display = 'none';
-    document.getElementById('player').style.display = 'block';
-    phase = 'before'; playing = true;
-    resetToBefore();
-    timer = setTimeout(fadeToAfter, HOLD);
+
+    var iB = new Image(), iA = new Image();
+    var loaded = 0;
+    function onLoad() {
+      loaded++;
+      if (loaded < 2) return;
+      // 選比例較高（更直）的圖當 sizer
+      var ratioB = iB.naturalHeight / iB.naturalWidth;
+      var ratioA = iA.naturalHeight / iA.naturalWidth;
+      document.getElementById('sizer').src = ratioB >= ratioA ? srcs.B : srcs.A;
+      document.getElementById('imgB').src = srcs.B;
+      document.getElementById('imgA').src = srcs.A;
+
+      var comp = document.getElementById('compName').value || '';
+      document.getElementById('rTitle').textContent = document.getElementById('projName').value || '清潔紀錄';
+      document.getElementById('rComp').textContent = comp;
+      document.getElementById('watermark').textContent = comp;
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('player').style.display = 'block';
+
+      phase = 'before'; playing = true;
+      resetToBefore();
+      timer = setTimeout(fadeToAfter, HOLD);
+    }
+    iB.onload = onLoad; iA.onload = onLoad;
+    iB.src = srcs.B; iA.src = srcs.A;
   }
 
   function resetToBefore() {
-    setOpacity(document.getElementById('imgB'), 1, 0);
-    setOpacity(document.getElementById('imgA'), 0, 0);
-    setOpacity(document.getElementById('bdgB'), 1, 0);
-    setOpacity(document.getElementById('bdgA'), 0, 0);
+    op(document.getElementById('imgB'), 1, 0);
+    op(document.getElementById('imgA'), 0, 0);
+    op(document.getElementById('bdgB'), 1, 0);
+    op(document.getElementById('bdgA'), 0, 0);
   }
 
   function fadeToAfter() {
     if (!playing) return;
     phase = 'after';
-    setOpacity(document.getElementById('imgA'), 1, FADE);
-    setOpacity(document.getElementById('bdgB'), 0, FADE);
-    setOpacity(document.getElementById('bdgA'), 1, FADE);
+    op(document.getElementById('imgB'), 0, FADE);
+    op(document.getElementById('imgA'), 1, FADE);
+    op(document.getElementById('bdgB'), 0, FADE);
+    op(document.getElementById('bdgA'), 1, FADE);
     timer = setTimeout(fadeToBefore, HOLD + FADE);
   }
 
   function fadeToBefore() {
     if (!playing) return;
     phase = 'before';
-    setOpacity(document.getElementById('imgA'), 0, FADE);
-    setOpacity(document.getElementById('bdgB'), 1, FADE);
-    setOpacity(document.getElementById('bdgA'), 0, FADE);
+    op(document.getElementById('imgB'), 1, FADE);
+    op(document.getElementById('imgA'), 0, FADE);
+    op(document.getElementById('bdgB'), 1, FADE);
+    op(document.getElementById('bdgA'), 0, FADE);
     timer = setTimeout(fadeToAfter, HOLD + FADE);
   }
 
-  function setOpacity(el, val, dur) {
+  function op(el, val, dur) {
     el.style.transition = dur ? 'opacity ' + dur + 'ms ease-in-out' : 'none';
     el.style.opacity = val;
   }
@@ -204,8 +218,7 @@
       playing = false; clearTimeout(timer);
       btn.textContent = '▶ 播放';
     } else {
-      playing = true;
-      btn.textContent = '⏸ 暫停';
+      playing = true; btn.textContent = '⏸ 暫停';
       timer = setTimeout(phase === 'before' ? fadeToAfter : fadeToBefore, HOLD);
     }
   }

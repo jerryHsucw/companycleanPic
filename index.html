@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>清潔前後展示</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Microsoft JhengHei', Arial, sans-serif;
+    background: #111; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 16px;
+  }
+
+  /* ── 設定畫面 ── */
+  .setup { width: 100%; max-width: 440px; }
+  .setup h1 { color: white; text-align: center; font-size: 1.15em; letter-spacing: 2px; margin-bottom: 20px; }
+
+  .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .upload-box {
+    border: 2px dashed #444; border-radius: 10px; min-height: 140px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden; transition: border-color 0.2s;
+  }
+  .upload-box:hover { border-color: #888; }
+  .upload-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-box .tag {
+    font-size: 0.72em; font-weight: bold; padding: 3px 12px;
+    border-radius: 20px; margin-bottom: 8px; z-index: 1;
+  }
+  .tag-b { background: #fff3e0; color: #e65100; }
+  .tag-a { background: #e8f5e9; color: #2e7d32; }
+  .upload-box .icon { font-size: 1.8em; color: #555; z-index: 1; }
+  .upload-box .hint { font-size: 0.7em; color: #666; margin-top: 4px; z-index: 1; }
+  .thumb {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; border-radius: 8px;
+  }
+
+  .field {
+    width: 100%; padding: 10px 14px; background: #222; border: 1px solid #444;
+    border-radius: 8px; color: white; font-size: 0.9em; margin-bottom: 12px;
+    outline: none;
+  }
+  .field::placeholder { color: #555; }
+
+  .btn-start {
+    width: 100%; padding: 14px; border: none; border-radius: 10px;
+    font-size: 1em; font-weight: bold; cursor: pointer; letter-spacing: 1px;
+    background: linear-gradient(135deg, #f97316, #ea580c); color: white;
+  }
+  .btn-start:active { opacity: 0.85; }
+
+  /* ── 播放畫面 ── */
+  .player { display: none; width: 100%; max-width: 440px; }
+  .proj-title { color: white; font-size: 1em; font-weight: bold; text-align: center; margin-bottom: 8px; letter-spacing: 1px; }
+
+  .stage {
+    position: relative; width: 100%; border-radius: 12px;
+    overflow: hidden; background: #000;
+  }
+  /* 用 before 圖決定高度，after 疊在上面 */
+  #imgB { display: block; width: 100%; height: auto; object-fit: contain; }
+  #imgA {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; object-fit: contain;
+    opacity: 0;
+  }
+
+  .badge {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    padding: 5px 18px; border-radius: 20px; font-size: 0.82em;
+    font-weight: bold; color: white; letter-spacing: 1px; pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  .badge-b { background: rgba(230,81,0,0.88); }
+  .badge-a { background: rgba(46,125,50,0.88); opacity: 0; }
+
+  .comp-name { color: #666; font-size: 0.72em; text-align: center; margin-top: 8px; letter-spacing: 1px; }
+
+  .controls { display: flex; gap: 10px; margin-top: 12px; }
+  .btn-ctrl {
+    flex: 1; padding: 12px; border: none; border-radius: 8px;
+    font-size: 0.88em; font-weight: bold; cursor: pointer;
+  }
+  .btn-play { background: #f97316; color: white; }
+  .btn-back { background: #2a2a2a; color: #aaa; }
+  .btn-ctrl:active { opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<!-- 設定畫面 -->
+<div class="setup" id="setup">
+  <h1>🧹 清潔前後展示</h1>
+  <input class="field" type="text" id="projName" placeholder="工程名稱（例：廚房深度清潔）">
+  <input class="field" type="text" id="compName" placeholder="公司名稱（選填）">
+  <div class="upload-row">
+    <div class="upload-box" id="boxB">
+      <input type="file" accept="image/*" onchange="loadImg(this,'B')">
+      <span class="tag tag-b">清潔前</span>
+      <div class="icon" id="iconB">🖼️</div>
+      <div class="hint" id="hintB">點擊上傳</div>
+    </div>
+    <div class="upload-box" id="boxA">
+      <input type="file" accept="image/*" onchange="loadImg(this,'A')">
+      <span class="tag tag-a">清潔後</span>
+      <div class="icon" id="iconA">🖼️</div>
+      <div class="hint" id="hintA">點擊上傳</div>
+    </div>
+  </div>
+  <button class="btn-start" onclick="startPlayer()">▶ 開始播放</button>
+</div>
+
+<!-- 播放畫面 -->
+<div class="player" id="player">
+  <div class="proj-title" id="rTitle"></div>
+  <div class="stage" id="stage">
+    <img id="imgB" src="">
+    <img id="imgA" src="">
+    <div class="badge badge-b" id="bdgB">清潔前</div>
+    <div class="badge badge-a" id="bdgA">清潔後</div>
+  </div>
+  <div class="comp-name" id="rComp"></div>
+  <div class="controls">
+    <button class="btn-ctrl btn-back" onclick="goBack()">← 重新上傳</button>
+    <button class="btn-ctrl btn-play" id="btnPlay" onclick="togglePlay()">⏸ 暫停</button>
+  </div>
+</div>
+
+<script>
+  var srcs = { B: null, A: null };
+  var playing = false, timer = null, phase = 'before';
+  var HOLD = 2800, FADE = 1400;
+
+  function loadImg(input, side) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      srcs[side] = e.target.result;
+      // 顯示縮圖
+      var box = document.getElementById('box' + side);
+      // 移除舊縮圖
+      var old = box.querySelector('.thumb');
+      if (old) old.remove();
+      document.getElementById('icon' + side).style.display = 'none';
+      document.getElementById('hint' + side).style.display = 'none';
+      var img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = e.target.result;
+      box.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function startPlayer() {
+    if (!srcs.B || !srcs.A) { alert('請先上傳清潔前和清潔後的圖片'); return; }
+    document.getElementById('imgB').src = srcs.B;
+    document.getElementById('imgA').src = srcs.A;
+    document.getElementById('rTitle').textContent = document.getElementById('projName').value || '清潔紀錄';
+    document.getElementById('rComp').textContent = document.getElementById('compName').value || '';
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('player').style.display = 'block';
+    phase = 'before'; playing = true;
+    resetToBefore();
+    timer = setTimeout(fadeToAfter, HOLD);
+  }
+
+  function resetToBefore() {
+    setOpacity(document.getElementById('imgB'), 1, 0);
+    setOpacity(document.getElementById('imgA'), 0, 0);
+    setOpacity(document.getElementById('bdgB'), 1, 0);
+    setOpacity(document.getElementById('bdgA'), 0, 0);
+  }
+
+  function fadeToAfter() {
+    if (!playing) return;
+    phase = 'after';
+    setOpacity(document.getElementById('imgA'), 1, FADE);
+    setOpacity(document.getElementById('bdgB'), 0, FADE);
+    setOpacity(document.getElementById('bdgA'), 1, FADE);
+    timer = setTimeout(fadeToBefore, HOLD + FADE);
+  }
+
+  function fadeToBefore() {
+    if (!playing) return;
+    phase = 'before';
+    setOpacity(document.getElementById('imgA'), 0, FADE);
+    setOpacity(document.getElementById('bdgB'), 1, FADE);
+    setOpacity(document.getElementById('bdgA'), 0, FADE);
+    timer = setTimeout(fadeToAfter, HOLD + FADE);
+  }
+
+  function setOpacity(el, val, dur) {
+    el.style.transition = dur ? 'opacity ' + dur + 'ms ease-in-out' : 'none';
+    el.style.opacity = val;
+  }
+
+  function togglePlay() {
+    var btn = document.getElementById('btnPlay');
+    if (playing) {
+      playing = false; clearTimeout(timer);
+      btn.textContent = '▶ 播放';
+    } else {
+      playing = true;
+      btn.textContent = '⏸ 暫停';
+      timer = setTimeout(phase === 'before' ? fadeToAfter : fadeToBefore, HOLD);
+    }
+  }
+
+  function goBack() {
+    clearTimeout(timer); playing = false;
+    document.getElementById('player').style.display = 'none';
+    document.getElementById('setup').style.display = 'block';
+  }
+</script>
+</body>
+</html>
